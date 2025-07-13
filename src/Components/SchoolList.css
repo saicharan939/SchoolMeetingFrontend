@@ -1,0 +1,169 @@
+/* frontend/src/Components/SchoolList.css */
+.container {
+  max-width: 1200px;
+  margin: 40px auto;
+  padding: 30px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', sans-serif;
+}
+
+h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 30px;
+  font-weight: 600;
+}
+
+.school-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.school-table th,
+.school-table td {
+  border: 1px solid #e0e0e0;
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.school-table th {
+  background-color: #f8f9fa;
+  color: #34495e;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.school-table tbody tr:nth-child(even) {
+  background-color: #fdfdfd;
+}
+
+.school-table tbody tr:hover {
+  background-color: #f0f8ff;
+  transition: background-color 0.2s ease;
+}
+
+.school-table td {
+  color: #555;
+}
+
+/* Checkbox column styling */
+.checkbox-column {
+  vertical-align: top; /* Align content to the top */
+}
+
+.checkbox-column label {
+  display: flex; /* Use flexbox for alignment */
+  align-items: center; /* Vertically align checkbox and text */
+  margin-bottom: 8px; /* Space between checkboxes */
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.checkbox-column input[type="checkbox"] {
+  margin-right: 8px; /* Space between checkbox and label text */
+  transform: scale(1.1); /* Slightly larger checkboxes */
+  cursor: pointer;
+}
+
+
+/* Action buttons */
+.school-table .action-btn {
+  padding: 8px 15px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  background-color: #007bff; /* Blue for action */
+  color: white;
+}
+
+.school-table .action-btn:hover {
+  background-color: #0056b3;
+}
+
+.school-table .action-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+/* Responsive Table */
+@media (max-width: 1024px) {
+  .container {
+    padding: 20px;
+    margin: 20px auto;
+  }
+  .school-table th,
+  .school-table td {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 15px;
+  }
+  .school-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .school-table thead, .school-table tbody, .school-table th, .school-table td, .school-table tr {
+    display: block;
+  }
+  .school-table th {
+    text-align: right;
+    padding-right: 20px;
+  }
+  .school-table td {
+    border: none;
+    border-bottom: 1px solid #e0e0e0;
+    position: relative;
+    padding-left: 50%;
+    text-align: right;
+  }
+  .school-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    width: 45%;
+    padding-left: 15px;
+    font-weight: bold;
+    text-align: left;
+    color: #34495e;
+  }
+  /* Hide table headers (but not display: none;, for accessibility) */
+  .school-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+  /* Add data-label attributes to your <td> elements in HTML for this to work */
+  /* Example: <td data-label="Name">{school.name}</td> */
+  .checkbox-column label {
+    font-size: 0.8rem;
+    margin-bottom: 5px;
+  }
+}
+
+@media (max-width: 480px) {
+  h2 {
+    font-size: 1.5rem;
+  }
+  .school-table td {
+    padding-left: 40%;
+  }
+  .school-table td::before {
+    width: 35%;
+  }
+  .school-table .action-btn {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+}
