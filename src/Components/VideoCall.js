@@ -12,6 +12,8 @@ const VideoCall = ({ roomId }) => {
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const peerRef = useRef(); // This will store the SimplePeer instance
+  const localStreamRef = useRef(); // ADDED: To store the local media stream object
+  const remoteStreamRef = useRef(); // ADDED: To store the remote media stream object
 
   // Use state for UI-related toggles and data that causes re-renders
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -32,7 +34,9 @@ const VideoCall = ({ roomId }) => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         // Store the stream in a ref, not state, to avoid unnecessary re-renders
-        localVideoRef.current.srcObject = mediaStream;
+        if (localVideoRef.current) {
+            localVideoRef.current.srcObject = mediaStream;
+        }
         localStreamRef.current = mediaStream; // Store in localStreamRef too
 
         // 2. Emit 'join-room' event
@@ -106,15 +110,15 @@ const VideoCall = ({ roomId }) => {
         console.log("VideoCall: Socket disconnected.");
       }
       // Stop all tracks for the local stream
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
-        localVideoRef.current.srcObject = null;
+      if (localStreamRef.current) { // CORRECTED: Use localStreamRef.current
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current = null;
         console.log("VideoCall: Local media stream tracks stopped.");
       }
       // Stop remote stream tracks if you manage them (though simple-peer handles this largely)
-      if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
-        remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
-        remoteVideoRef.current.srcObject = null;
+      if (remoteStreamRef.current) { // CORRECTED: Use remoteStreamRef.current
+        remoteStreamRef.current.getTracks().forEach(track => track.stop());
+        remoteStreamRef.current = null;
         console.log("VideoCall: Remote media stream tracks stopped.");
       }
     };
@@ -122,10 +126,10 @@ const VideoCall = ({ roomId }) => {
 
   // Function to create a simple-peer instance (initiator)
   const createPeer = (userToSignal, callerId, mediaStream, socketInstance) => {
-    const newPeer = new SimplePeer({ // CORRECTED: Use SimplePeer directly
+    const newPeer = new SimplePeer({
       initiator: true,
-      trickle: false, // Use full SDP offers/answers, not trickle ICE candidates
-      stream: mediaStream, // Attach local media stream
+      trickle: false,
+      stream: mediaStream,
       // Add STUN/TURN servers if behind NAT. Example:
       // config: {
       //   iceServers: [
@@ -168,7 +172,7 @@ const VideoCall = ({ roomId }) => {
 
   // Function to add a simple-peer instance (non-initiator, answering a call)
   const addPeer = (incomingSignal, mediaStream, socketInstance) => {
-    const newPeer = new SimplePeer({ // CORRECTED: Use SimplePeer directly
+    const newPeer = new SimplePeer({
       initiator: false,
       trickle: false,
       stream: mediaStream,
@@ -214,8 +218,8 @@ const VideoCall = ({ roomId }) => {
 
   // Toggle local audio track
   const toggleAudio = () => {
-    if (!localVideoRef.current || !localVideoRef.current.srcObject) return; // CORRECTED: Check ref.srcObject
-    localVideoRef.current.srcObject.getAudioTracks().forEach(track => {
+    if (!localStreamRef.current) return; // CORRECTED: Use localStreamRef.current
+    localStreamRef.current.getAudioTracks().forEach(track => {
       track.enabled = !track.enabled;
       setAudioEnabled(track.enabled);
     });
@@ -224,8 +228,8 @@ const VideoCall = ({ roomId }) => {
 
   // Toggle local video track
   const toggleVideo = () => {
-    if (!localVideoRef.current || !localVideoRef.current.srcObject) return; // CORRECTED: Check ref.srcObject
-    localVideoRef.current.srcObject.getVideoTracks().forEach(track => {
+    if (!localStreamRef.current) return; // CORRECTED: Use localStreamRef.current
+    localStreamRef.current.getVideoTracks().forEach(track => {
       track.enabled = !track.enabled;
       setVideoEnabled(track.enabled);
     });
