@@ -35,7 +35,17 @@ const MeetingApp = () => {
   const mainContentRef = useRef(null);
   const logoSrc = schoolLogo || "/default-logo.png";
 
+  // ADD THESE LOGS HERE
+  console.log("MeetingApp rendering. Current joined state:", joined);
+  console.log("MeetingApp rendering. Current viewMode:", viewMode);
+
   useEffect(() => {
+    // ADD THESE LOGS HERE
+    console.log("MeetingApp useEffect triggered. urlMeetingId:", urlMeetingId);
+    console.log("MeetingApp useEffect: joined state on effect run:", joined);
+    console.log("MeetingApp useEffect: viewMode state on effect run:", viewMode);
+
+
     if (urlMeetingId) {
       setRoomId(urlMeetingId);
       // Use the environment variable for the backend URL
@@ -63,7 +73,7 @@ const MeetingApp = () => {
     } else {
       setViewMode('initial');
     }
-  }, [urlMeetingId]);
+  }, [urlMeetingId]); // This dependency array is correct for this effect.
 
   const enableJoinButton = (slotTime) => {
     const [hours, minutes] = slotTime.split(':').map(Number);
@@ -87,7 +97,10 @@ const MeetingApp = () => {
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    // IMPORTANT: This setInterval needs to be managed with a useEffect cleanup to avoid multiple intervals
+    // However, this is not the cause of the current unmount issue.
+    // For now, keep it as is, but be aware of it for future refinement.
+    // return () => clearInterval(interval); // This return doesn't do anything here as it's not in useEffect
   };
 
   const handleJoin = async () => {
@@ -207,7 +220,12 @@ const MeetingApp = () => {
   }
 
   const renderContent = () => {
+    // ADD THESE LOGS HERE
+    console.log("renderContent function called. Current joined state:", joined);
+    console.log("renderContent function called. Current viewMode:", viewMode);
+
     if (joined) {
+      console.log("RENDER CONTENT: Returning VideoCall component.");
       return <VideoCall roomId={roomId} />;
     }
 
@@ -274,7 +292,10 @@ const MeetingApp = () => {
                 <h4 style={{ color: '#28a745', fontSize: '18px', marginBottom: '10px' }}>Confirmed Slot: {confirmedSlot}</h4>
                 {canJoin ? (
                   <button
-                    onClick={() => setJoined(true)}
+                    onClick={() => { // ADD THIS LOG HERE
+                      console.log("Button Clicked: Setting joined to true!");
+                      setJoined(true);
+                    }}
                     style={{
                       backgroundColor: '#007bff',
                       color: 'white',
