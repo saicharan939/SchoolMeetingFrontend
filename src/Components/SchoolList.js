@@ -2,22 +2,22 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './SchoolList.css'; // Import component-specific CSS
+import './SchoolList.css';
+
+// Define the API URL using an environment variable
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
 
 function SchoolList() {
-  const [schools, setSchools] = useState([]); // State to store the list of schools
-  const navigate = useNavigate(); // Hook for programmatic navigation
+  const [schools, setSchools] = useState([]);
+  const navigate = useNavigate();
 
-  // State to track the status of the three checkboxes for each school
-  // Format: { schoolId: { approvalByShruthi: false, databaseReady: false, conditionsMet: false } }
   const [checkboxStatus, setCheckboxStatus] = useState({});
 
-  // Fetch school data when the component mounts
   useEffect(() => {
-    axios.get('http://192.168.1.22:3001/api/schools')
+    // Use the environment variable for the backend URL
+    axios.get(`${BACKEND_API_URL}/api/schools`)
       .then(res => {
         setSchools(res.data);
-        // Initialize checkbox status for each school
         const initialCheckboxStatus = {};
         res.data.forEach(school => {
           initialCheckboxStatus[school.id] = {
@@ -29,22 +29,19 @@ function SchoolList() {
         setCheckboxStatus(initialCheckboxStatus);
       })
       .catch(err => console.error("Error fetching schools:", err));
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
-  // Handle checkbox change for a specific school and checkbox name
   const handleCheckboxChange = (schoolId, checkboxName) => {
     setCheckboxStatus(prevStatus => ({
       ...prevStatus,
       [schoolId]: {
         ...prevStatus[schoolId],
-        [checkboxName]: !prevStatus[schoolId][checkboxName], // Toggle the checkbox state
+        [checkboxName]: !prevStatus[schoolId][checkboxName],
       },
     }));
   };
 
-  // Navigate to the MeetingApp for a specific school
   const handleGoToMeeting = (id) => {
-    // Check if all three checkboxes are checked for the specific school
     const currentSchoolCheckboxStatus = checkboxStatus[id];
     if (
       currentSchoolCheckboxStatus &&
@@ -52,7 +49,7 @@ function SchoolList() {
       currentSchoolCheckboxStatus.databaseReady &&
       currentSchoolCheckboxStatus.conditionsMet
     ) {
-      navigate(`/schedule/`); // Navigate to the meeting schedule page
+      navigate(`/schedule/`);
     } else {
       alert('Please ensure all conditions (Approval by Shruthi, Database Ready, Conditions Met) are checked before initiating a meeting.');
     }
@@ -72,7 +69,7 @@ function SchoolList() {
             <th>Phone</th>
             <th>Email</th>
             <th>Students</th>
-            <th>Conditions</th> {/* New column for checkboxes */}
+            <th>Conditions</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -80,14 +77,14 @@ function SchoolList() {
           {schools.map((school) => (
             <tr key={school.id}>
               <td>{school.id}</td>
-              <td>{school.name}</td>
-              <td>{school.principal}</td>
-              <td>{school.school_name}</td>
+              {/* Corrected column names based on your database schema */}
+              <td>{school.school_name}</td> {/* Using school_name */}
+              <td>{school.contact_person}</td> {/* Using contact_person */}
+              <td>{school.display_name}</td> {/* Assuming display_name is for the 'School' column based on your insert values */}
               <td>{school.address}</td>
-              <td>{school.phone_no}</td>
+              <td>{school.phone_number}</td> {/* Using phone_number */}
               <td>{school.email}</td>
-              <td>{school.num_students}</td>
-              {/* Checkboxes for conditions */}
+              <td>{school.student_count}</td> {/* Using student_count */}
               <td className="checkbox-column">
                 <label>
                   <input
@@ -118,7 +115,6 @@ function SchoolList() {
                 <button
                   className="action-btn"
                   onClick={() => handleGoToMeeting(school.id)}
-                  // The button is disabled unless all checkboxes for this school are checked
                   disabled={
                     !(checkboxStatus[school.id]?.approvalByShruthi &&
                       checkboxStatus[school.id]?.databaseReady &&

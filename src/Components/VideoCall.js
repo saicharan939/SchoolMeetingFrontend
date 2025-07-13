@@ -3,8 +3,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer'; // Peer-to-peer connection library
 import io from 'socket.io-client'; // Socket.IO client for signaling
 
+// Define the Socket.IO server URL using an environment variable.
+// This should be the same as your backend API URL on Railway.
+const SOCKET_SERVER_URL = process.env.REACT_APP_BACKEND_API_URL;
+
 // Connect to the Socket.IO server
-const socket = io('http://192.168.1.22::3010');
+// Ensure this connection happens *after* SOCKET_SERVER_URL is defined,
+// or better yet, within useEffect to ensure the variable is loaded.
+// For now, let's move the 'socket' initialization inside useEffect
+// to ensure the environment variable is properly picked up by React's build process.
+// If it's outside, it might be evaluated too early.
 
 const VideoCall = ({ roomId }) => {
   const localVideoRef = useRef(null); // Ref for local video element
@@ -16,7 +24,18 @@ const VideoCall = ({ roomId }) => {
   const [messages, setMessages] = useState([]); // State for chat messages (if chat was implemented)
   const [newMessage, setNewMessage] = useState(''); // State for new chat message input
 
+  // Declare socket outside, but initialize within useEffect for correct env var usage
+  const socketRef = useRef(null);
+
   useEffect(() => {
+    // Initialize socket connection here, using the environment variable
+    if (!socketRef.current) {
+        socketRef.current = io(SOCKET_SERVER_URL);
+        console.log(`Attempting Socket.IO connection to: ${SOCKET_SERVER_URL}`);
+    }
+    const socket = socketRef.current;
+
+
     // Request access to user's media devices (webcam and microphone)
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((mediaStream) => {
@@ -32,7 +51,7 @@ const VideoCall = ({ roomId }) => {
         socket.on('user-joined', (userId) => {
           console.log(`User ${userId} joined the room. Initiating call.`);
           // Create a new Peer instance to initiate a call to the joined user
-          const newPeer = createPeer(userId, socket.id, mediaStream);
+          const newPeer = createPeer(userId, socket.id, mediaStream, socket); // Pass socket
           setPeer(newPeer); // Store the peer instance
         });
 
@@ -40,7 +59,7 @@ const VideoCall = ({ roomId }) => {
         socket.on('receive-call', (payload) => {
           console.log(`Receiving call from ${payload.callerId}.`);
           // Add a new Peer instance to answer the incoming call
-          const newPeer = addPeer(payload.signal, mediaStream);
+          const newPeer = addPeer(payload.signal, mediaStream, socket); // Pass socket
           setPeer(newPeer); // Store the peer instance
         });
 
@@ -69,13 +88,16 @@ const VideoCall = ({ roomId }) => {
       if (peer) {
         peer.destroy(); // Destroy the peer connection
       }
-      socket.disconnect(); // Disconnect from Socket.IO server
+      if (socketRef.current) {
+          socketRef.current.disconnect(); // Disconnect from Socket.IO server
+          socketRef.current = null; // Clear ref
+      }
       console.log("VideoCall component unmounted, socket disconnected.");
     };
-  }, [roomId, peer]); // Re-run if roomId changes, or if peer instance changes (for signaling)
+  }, [roomId, peer, SOCKET_SERVER_URL]); // Add SOCKET_SERVER_URL to dependencies
 
   // Function to create a simple-peer instance (initiator)
-  const createPeer = (userToSignal, callerId, mediaStream) => {
+  const createPeer = (userToSignal, callerId, mediaStream, socketInstance) => { // Accept socketInstance
     const newPeer = new Peer({
       initiator: true, // This peer initiates the connection
       trickle: false, // Use full SDP offers/answers, not trickle ICE candidates
@@ -85,7 +107,7 @@ const VideoCall = ({ roomId }) => {
     // When the peer generates a signaling offer
     newPeer.on('signal', (signal) => {
       // Send the offer to the other user via the Socket.IO server
-      socket.emit('send-call', { userToSignal, callerId, signal });
+      socketInstance.emit('send-call', { userToSignal, callerId, signal });
     });
 
     // When the peer receives a remote stream
@@ -106,7 +128,7 @@ const VideoCall = ({ roomId }) => {
   };
 
   // Function to add a simple-peer instance (non-initiator, answering a call)
-  const addPeer = (incomingSignal, mediaStream) => {
+  const addPeer = (incomingSignal, mediaStream, socketInstance) => { // Accept socketInstance
     const newPeer = new Peer({
       initiator: false, // This peer answers the connection
       trickle: false,
@@ -116,7 +138,7 @@ const VideoCall = ({ roomId }) => {
     // When the peer generates a signaling answer
     newPeer.on('signal', (signal) => {
       // Send the answer back to the caller via the Socket.IO server
-      socket.emit('accept-call', { callerId: incomingSignal.callerId, signal });
+      socketInstance.emit('accept-call', { callerId: incomingSignal.callerId, signal });
     });
 
     // When the peer receives a remote stream

@@ -2,30 +2,32 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const CreateMeeting = ({ onCreated }) => {
-  const [email, setEmail] = useState(''); // State for recipient email
-  const [meetingId, setMeetingId] = useState(''); // State to display generated meeting ID
-  const [loading, setLoading] = useState(false); // State for loading indicator
+// Define the API URL using an environment variable
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
 
-  // Handles the creation of a new meeting and sending an invitation email
+const CreateMeeting = ({ onCreated }) => {
+  const [email, setEmail] = useState('');
+  const [meetingId, setMeetingId] = useState('');
+  const [loading, setLoading] = useState(false);
+
   const handleCreate = async () => {
     if (!email) {
       alert('Please enter a recipient email address.');
       return;
     }
-    setLoading(true); // Show loading indicator
+    setLoading(true);
     try {
-      // Make a POST request to the backend to create a meeting
-      const res = await axios.post('http://192.168.1.22:3001/create-meeting', { recipientEmail: email });
+      // Use the environment variable for the backend URL
+      const res = await axios.post(`${BACKEND_API_URL}/create-meeting`, { recipientEmail: email });
       alert('Meeting invitation sent to email!');
-      setMeetingId(res.data.meetingId); // Store and display the generated meeting ID
-      onCreated(res.data.meetingId); // Notify parent component (MeetingApp) about the new meeting ID
-      setEmail(''); // Clear the email input
+      setMeetingId(res.data.meetingId);
+      onCreated(res.data.meetingId);
+      setEmail('');
     } catch (err) {
       console.error('Error creating meeting:', err.response?.data?.message || err.message);
       alert(`Error sending invite: ${err.response?.data?.message || 'Please check console for details.'}`);
     } finally {
-      setLoading(false); // Hide loading indicator
+      setLoading(false);
     }
   };
 
@@ -48,9 +50,9 @@ const CreateMeeting = ({ onCreated }) => {
         />
         <button
           onClick={handleCreate}
-          disabled={loading} // Disable button while loading
+          disabled={loading}
           style={{
-            backgroundColor: '#28a745', // Green color for create
+            backgroundColor: '#28a745',
             color: 'white',
             border: 'none',
             padding: '10px 20px',

@@ -1,63 +1,56 @@
 // frontend/src/Components/MeetingApp.js
 import React, { useRef, useState, useEffect } from 'react';
-import { Download, Share, ArrowLeft } from 'lucide-react'; // Icons from Lucide React
-import html2canvas from 'html2canvas'; // For capturing HTML content as an image
-import jsPDF from 'jspdf'; // For generating PDF from image
-import axios from 'axios'; // For making HTTP requests
-import { useNavigate, useParams } from 'react-router-dom'; // React Router hooks
-import VideoCall from './VideoCall'; // Import the video call component
-import CreateMeeting from './CreateMeeting'; // Import the create meeting component
-import SlotPicker from './SlotPicker'; // Import the slot picker component
-import '../App.css'; // Import global CSS for layout (sidebar, header etc.)
+import { Download, Share, ArrowLeft } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import axios from 'axios';
+import { useNavigate, useParams } from 'react-router-dom';
+import VideoCall from './VideoCall';
+import CreateMeeting from './CreateMeeting';
+import SlotPicker from './SlotPicker';
+import '../App.css';
 
-// Optional custom logo source
-const schoolLogo = ""; // You can put a URL or path here, e.g., "/images/my-school-logo.png"
+// Define the API URL using an environment variable
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
+// If Socket.IO uses a different URL (though likely same as API on Railway)
+const SOCKET_IO_URL = process.env.REACT_APP_SOCKET_URL; // Add this if you use a separate one for socket.io initialization
+
+const schoolLogo = "";
 
 const MeetingApp = () => {
-  const navigate = useNavigate(); // Hook for programmatic navigation
-  // Extract meetingId from URL parameters (e.g., /schedule/YOUR_ID)
+  const navigate = useNavigate();
   const { meetingId: urlMeetingId } = useParams();
 
-  // State variables for meeting logic
-  const [roomId, setRoomId] = useState(''); // Stores the current meeting ID
-  const [joined, setJoined] = useState(false); // True if the user has successfully joined the call
-  const [expired, setExpired] = useState(false); // True if the meeting link has expired
-  const [error, setError] = useState(''); // Stores error messages
-  const [confirmedSlot, setConfirmedSlot] = useState(''); // Stores the confirmed meeting time slot
-  const [slotConfirmed, setSlotConfirmed] = useState(false); // True if a slot has been confirmed
-  const [canJoin, setCanJoin] = useState(false); // True if user can click "Join Meeting" button
-  const [countdown, setCountdown] = useState(0); // Countdown in seconds until join time
+  const [roomId, setRoomId] = useState('');
+  const [joined, setJoined] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [error, setError] = useState('');
+  const [confirmedSlot, setConfirmedSlot] = useState('');
+  const [slotConfirmed, setSlotConfirmed] = useState(false);
+  const [canJoin, setCanJoin] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
-  // New state to manage the current view: 'initial' (Create/Join), 'slotPicker', 'videoCall'
   const [viewMode, setViewMode] = useState('initial');
 
-  // Ref for the content area to be downloaded as PDF
   const mainContentRef = useRef(null);
-  // Default logo source if schoolLogo is not provided
   const logoSrc = schoolLogo || "/default-logo.png";
 
-  // useEffect hook to handle initial setup based on URL parameters
   useEffect(() => {
-    // If a meetingId is present in the URL (e.g., from SchoolList or direct link)
     if (urlMeetingId) {
-      setRoomId(urlMeetingId); // Set the roomId from the URL
-      // Validate the meeting ID with the backend to check its status and slot time
-      axios.get(`http://192.168.1.22:3001/validate-meeting/${urlMeetingId}`)
+      setRoomId(urlMeetingId);
+      // Use the environment variable for the backend URL
+      axios.get(`${BACKEND_API_URL}/validate-meeting/${urlMeetingId}`)
         .then(res => {
           if (res.data.valid) {
-            // If the meeting is valid
             if (res.data.slotTime) {
-              // If a slot is already confirmed for this meeting, transition to slotPicker view
               setConfirmedSlot(res.data.slotTime);
               setSlotConfirmed(true);
               enableJoinButton(res.data.slotTime);
-              setViewMode('slotPicker'); // Show slot picker with countdown
+              setViewMode('slotPicker');
             } else {
-              // If valid but no slot confirmed yet, also transition to slotPicker view
-              setViewMode('slotPicker'); // Show slot picker for user to select a slot
+              setViewMode('slotPicker');
             }
           } else {
-            // If the meeting is invalid or expired, show error and set expired flag
             setExpired(true);
             setError(res.data.message || 'Meeting link is invalid or expired.');
           }
@@ -68,56 +61,46 @@ const MeetingApp = () => {
           setError('Could not validate meeting link. Please try again.');
         });
     } else {
-      // If no meetingId in URL, default to 'initial' view (Create/Join)
       setViewMode('initial');
     }
-  }, [urlMeetingId]); // This effect runs whenever the urlMeetingId changes
+  }, [urlMeetingId]);
 
-  // Function to enable the "Join Meeting" button based on the confirmed slot time
   const enableJoinButton = (slotTime) => {
     const [hours, minutes] = slotTime.split(':').map(Number);
     const now = new Date();
-    // Create a Date object for the scheduled slot time today
     let slotDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
 
-    // If the slot time for today has already passed, consider the slot for the next day
     if (slotDate.getTime() < now.getTime()) {
       slotDate.setDate(slotDate.getDate() + 1);
     }
 
-    // Calculate the time 3 minutes before the scheduled slot time
-    const joinTime = slotDate.getTime() - 3 * 60 * 1000; // 3 minutes before
+    const joinTime = slotDate.getTime() - 3 * 60 * 1000;
 
-    // Set up an interval to continuously check the time until the join time
     const interval = setInterval(() => {
-      const diff = joinTime - Date.now(); // Time difference in milliseconds
+      const diff = joinTime - Date.now();
       if (diff <= 0) {
-        setCanJoin(true); // Enable the join button
-        setCountdown(0); // Set countdown to 0
-        clearInterval(interval); // Stop the interval
+        setCanJoin(true);
+        setCountdown(0);
+        clearInterval(interval);
       } else {
-        setCountdown(Math.ceil(diff / 1000)); // Update countdown in seconds
+        setCountdown(Math.ceil(diff / 1000));
       }
-    }, 1000); // Check every second
+    }, 1000);
 
-    // Cleanup function for the interval
     return () => clearInterval(interval);
   };
 
-  // Handles joining the meeting
   const handleJoin = async () => {
     try {
-      // Re-validate the meeting ID before joining
-      const res = await axios.get(`http://192.168.1.22:3001/validate-meeting/${roomId}`);
+      // Use the environment variable for the backend URL
+      const res = await axios.get(`${BACKEND_API_URL}/validate-meeting/${roomId}`);
       if (res.data.valid) {
-        // If valid and a slot is already confirmed, proceed to video call
         if (res.data.slotTime) {
           setConfirmedSlot(res.data.slotTime);
           setSlotConfirmed(true);
           enableJoinButton(res.data.slotTime);
-          setViewMode('slotPicker'); // Go to slot picker to show countdown/join button
+          setViewMode('slotPicker');
         } else {
-          // If valid but no slot confirmed, go to slot picker to select one
           setViewMode('slotPicker');
         }
       } else {
@@ -129,25 +112,21 @@ const MeetingApp = () => {
     }
   };
 
-  // Callback function when a slot is confirmed in SlotPicker
   const handleSlotConfirmed = (slotTime) => {
-    setConfirmedSlot(slotTime); // Store the confirmed slot time
-    setSlotConfirmed(true); // Mark slot as confirmed
-    enableJoinButton(slotTime); // Start the countdown for the join button
+    setConfirmedSlot(slotTime);
+    setSlotConfirmed(true);
+    enableJoinButton(slotTime);
   };
 
-  // Callback function when a new meeting is created in CreateMeeting
   const handleCreatedMeeting = (id) => {
-    setRoomId(id); // Set the new meeting ID
-    setViewMode('slotPicker'); // Transition to slot picker view for the creator to schedule
+    setRoomId(id);
+    setViewMode('slotPicker');
   };
 
-  // Handles the back button click
   const handleBackClick = () => {
-    navigate('/'); // Navigate back to the SchoolList page
+    navigate('/');
   };
 
-  // Handles sharing the current page URL
   const handleShare = async () => {
     const shareData = {
       title: 'Meeting Invitation',
@@ -156,15 +135,11 @@ const MeetingApp = () => {
     };
 
     try {
-      // Use Web Share API if available
       if (navigator.share) {
         await navigator.share(shareData);
         console.log('Content shared successfully');
       } else {
-        // Fallback for browsers that don't support Web Share API
         alert('Web Share API is not supported in this browser. You can manually copy the URL.');
-        // Optionally, copy to clipboard here
-        // navigator.clipboard.writeText(window.location.href);
       }
     } catch (error) {
       console.error('Error sharing:', error);
@@ -172,36 +147,30 @@ const MeetingApp = () => {
     }
   };
 
-  // Handles downloading the main content as a PDF
   const handleDownload = () => {
-    const content = mainContentRef.current; // Get the DOM element to capture
-
-    // Set a scale factor for better resolution in the PDF
+    const content = mainContentRef.current;
     const scale = 2;
 
     html2canvas(content, {
       scale: scale,
-      useCORS: true, // Essential for handling images from different origins
-      logging: false // Disable logging for cleaner console
+      useCORS: true,
+      logging: false
     }).then((canvas) => {
-      const imgData = canvas.toDataURL('image/png'); // Convert canvas to PNG image data
-      const doc = new jsPDF('p', 'mm', 'a4'); // Create a new A4 PDF document (portrait, millimeters)
+      const imgData = canvas.toDataURL('image/png');
+      const doc = new jsPDF('p', 'mm', 'a4');
 
-      const imgWidth = 210; // A4 width in mm
-      // Calculate image height to maintain aspect ratio
+      const imgWidth = 210;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      // Add the image to the PDF, starting from the top-left corner
       doc.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
 
-      doc.save('dashboard.pdf'); // Save the PDF with a filename
+      doc.save('dashboard.pdf');
     }).catch(err => {
       console.error("Error generating PDF:", err);
       alert("Failed to generate PDF. Please try again.");
     });
   };
 
-  // Render an error message if the meeting link has expired
   if (expired) {
     return (
       <div style={{
@@ -237,7 +206,6 @@ const MeetingApp = () => {
     );
   }
 
-  // Main rendering logic based on viewMode and joined state
   const renderContent = () => {
     if (joined) {
       return <VideoCall roomId={roomId} />;
@@ -254,10 +222,10 @@ const MeetingApp = () => {
                 value={roomId}
                 onChange={(e) => {
                   setRoomId(e.target.value);
-                  setError(''); // Clear error when typing
-                  setSlotConfirmed(false); // Reset slot confirmed state
-                  setCanJoin(false); // Reset canJoin state
-                  setCountdown(0); // Reset countdown
+                  setError('');
+                  setSlotConfirmed(false);
+                  setCanJoin(false);
+                  setCountdown(0);
                 }}
                 placeholder="Enter Meeting ID"
                 style={{
@@ -273,7 +241,7 @@ const MeetingApp = () => {
               />
               <button
                 onClick={handleJoin}
-                disabled={!roomId} // Disable if no room ID is entered
+                disabled={!roomId}
                 style={{
                   backgroundColor: '#007bff',
                   color: 'white',
@@ -301,19 +269,19 @@ const MeetingApp = () => {
               roomId={roomId}
               onSlotConfirmed={handleSlotConfirmed}
             />
-            {slotConfirmed && ( // If slot is confirmed, show countdown and join button
+            {slotConfirmed && (
               <div style={{ marginTop: '20px', textAlign: 'center', padding: '15px', backgroundColor: '#e9f7ef', borderRadius: '8px', border: '1px solid #d0e9e0' }}>
                 <h4 style={{ color: '#28a745', fontSize: '18px', marginBottom: '10px' }}>Confirmed Slot: {confirmedSlot}</h4>
-                {canJoin ? ( // If it's time to join
+                {canJoin ? (
                   <button
-                    onClick={() => setJoined(true)} // Directly set joined to true to render VideoCall
+                    onClick={() => setJoined(true)}
                     style={{
                       backgroundColor: '#007bff',
                       color: 'white',
                       border: 'none',
                       padding: '12px 24px',
                       cursor: 'pointer',
-                      borderRadius: '8px', // More rounded
+                      borderRadius: '8px',
                       marginTop: '15px',
                       fontSize: '18px',
                       fontWeight: 'bold',
@@ -325,7 +293,7 @@ const MeetingApp = () => {
                   >
                     Join Meeting Now!
                   </button>
-                ) : ( // If waiting for join time
+                ) : (
                   <p style={{ fontSize: '16px', color: '#6c757d', margin: '10px 0 0 0' }}>
                     Meeting will start soon. Waiting... <strong style={{ color: '#007bff' }}>{countdown}</strong> seconds left to join
                   </p>
@@ -335,28 +303,23 @@ const MeetingApp = () => {
           </>
         );
       default:
-        return null; // Should not happen
+        return null;
     }
   };
 
   return (
     <>
-      {/* Top Bar */}
       <header className="top-bar">
         <div className="left-section">
-          {/* Display school logo */}
           <img src={logoSrc} alt="School Logo" style={{ height: '40px', borderRadius: '50%' }} onError={(e) => { e.target.onerror = null; e.target.src = "/default-logo.png" }} />
           <span style={{ marginLeft: '10px', fontSize: '20px', fontWeight: 'bold', color: 'white' }}>School App</span>
         </div>
-        {/* You can add right-section content here if needed */}
       </header>
 
       <div className="outer-container">
-        {/* Sidebar Navigation */}
         <aside className="sidebar">
-          <div className="logo"></div> {/* Placeholder for a larger logo if desired */}
+          <div className="logo"></div>
           <nav className="nav-icons">
-            {/* Font Awesome icons (ensure Font Awesome is linked in public/index.html or via CDN) */}
             <i className="fa fa-cogs" title="Operations"></i>
             <i className="fa fa-bullhorn" title="Marketing"></i>
             <i className="fa fa-shopping-cart" title="Commerce"></i>
@@ -366,9 +329,7 @@ const MeetingApp = () => {
           </nav>
         </aside>
 
-        {/* Main Content Area */}
-        <div className="main-content" ref={mainContentRef}> {/* Apply ref here for PDF download */}
-          {/* Header within main content */}
+        <div className="main-content" ref={mainContentRef}>
           <div className="header">
             <div className="header-left">
               <button className="btn-back" onClick={handleBackClick}>
@@ -387,19 +348,18 @@ const MeetingApp = () => {
               </button>
             </div>
           </div>
-          <div className="section-divider"></div> {/* Visual separator */}
+          <div className="section-divider"></div>
 
-          {/* Conditional rendering for meeting logic */}
           <div
             style={{
               textAlign: 'center',
               padding: '30px',
-              fontFamily: 'Inter, Arial, sans-serif', // Using Inter font
+              fontFamily: 'Inter, Arial, sans-serif',
               backgroundColor: '#fff',
-              borderRadius: '12px', // Rounded corners
-              boxShadow: '0 6px 18px rgba(0, 0, 0, 0.15)', // Enhanced shadow
-              maxWidth: '800px', // Increased max-width for better layout
-              margin: '50px auto', // Centered with margin
+              borderRadius: '12px',
+              boxShadow: '0 6px 18px rgba(0, 0, 0, 0.15)',
+              maxWidth: '800px',
+              margin: '50px auto',
               border: '1px solid #e0e0e0'
             }}
           >

@@ -2,33 +2,35 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const SlotPicker = ({ roomId, onSlotConfirmed }) => {
-  const [slotTime, setSlotTime] = useState(''); // State for the selected slot time
-  const [submitted, setSubmitted] = useState(false); // State to track if slot has been submitted
-  const [loading, setLoading] = useState(false); // State for loading indicator
+// Define the API URL using an environment variable
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
 
-  // Handles the confirmation of the selected time slot
+const SlotPicker = ({ roomId, onSlotConfirmed }) => {
+  const [slotTime, setSlotTime] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const handleConfirmSlot = async () => {
     if (!slotTime) {
       alert('Please select a time slot before submitting.');
       return;
     }
-    setLoading(true); // Show loading indicator
+    setLoading(true);
 
     try {
-      // Send the selected slot time to the backend for the given meeting ID
-      await axios.post('http://192.168.1.22:3001/select-slot', {
+      // Use the environment variable for the backend URL
+      await axios.post(`${BACKEND_API_URL}/select-slot`, {
         meetingId: roomId,
         slotTime
       });
 
-      onSlotConfirmed(slotTime); // Notify parent component (MeetingApp) with the confirmed slot
-      setSubmitted(true); // Mark as submitted
+      onSlotConfirmed(slotTime);
+      setSubmitted(true);
     } catch (error) {
       console.error('Error saving slot:', error.response?.data?.message || error.message);
       alert(`Error saving slot. Please try again: ${error.response?.data?.message || ''}`);
     } finally {
-      setLoading(false); // Hide loading indicator
+      setLoading(false);
     }
   };
 
@@ -37,7 +39,7 @@ const SlotPicker = ({ roomId, onSlotConfirmed }) => {
       <h3 style={{ color: '#333', marginBottom: '15px' }}>Select a 30-minute Meeting Slot</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <input
-          type="time" // HTML5 time input for easy time selection
+          type="time"
           value={slotTime}
           onChange={(e) => setSlotTime(e.target.value)}
           style={{
@@ -50,9 +52,9 @@ const SlotPicker = ({ roomId, onSlotConfirmed }) => {
         />
         <button
           onClick={handleConfirmSlot}
-          disabled={submitted || loading} // Disable if already submitted or loading
+          disabled={submitted || loading}
           style={{
-            backgroundColor: '#007bff', // Blue color for submit
+            backgroundColor: '#007bff',
             color: 'white',
             border: 'none',
             padding: '10px 20px',
