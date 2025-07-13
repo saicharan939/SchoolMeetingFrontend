@@ -3,16 +3,25 @@ import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer'; // Peer-to-peer connection library
 import io from 'socket.io-client'; // Socket.IO client for signaling
 
+// Temporary polyfill for 'process is not defined' AND 'process.nextTick is not a function' errors in browsers
+// This should ideally be handled by your build system (e.g., Webpack/CRA)
+// but can be added here for quick testing.
+if (typeof process === 'undefined') {
+  window.process = {
+    env: {
+      NODE_ENV: 'production' // or 'development', depending on your build environment
+    },
+    // Add nextTick polyfill
+    nextTick: function(fn) {
+      setTimeout(fn, 0); // Polyfill nextTick with setTimeout(fn, 0) for browser environments
+    }
+  };
+}
+
+
 // Define the Socket.IO server URL using an environment variable.
 // This should be the same as your backend API URL on Railway.
 const SOCKET_SERVER_URL = process.env.REACT_APP_BACKEND_API_URL;
-
-// Connect to the Socket.IO server
-// Ensure this connection happens *after* SOCKET_SERVER_URL is defined,
-// or better yet, within useEffect to ensure the variable is loaded.
-// For now, let's move the 'socket' initialization inside useEffect
-// to ensure the environment variable is properly picked up by React's build process.
-// If it's outside, it might be evaluated too early.
 
 const VideoCall = ({ roomId }) => {
   const localVideoRef = useRef(null); // Ref for local video element
@@ -67,7 +76,12 @@ const VideoCall = ({ roomId }) => {
         socket.on('call-accepted', (payload) => {
           console.log(`Call accepted by ${payload.id}. Signaling back.`);
           // Signal the existing peer with the received answer
-          peer?.signal(payload.signal);
+          // IMPORTANT: Check if peer exists before signaling
+          if (peer) { // Add this check
+              peer.signal(payload.signal);
+          } else {
+              console.warn("Peer not yet initialized when call-accepted received. This might be a timing issue.");
+          }
         });
 
         // Listen for 'chat-message' event (if chat was implemented)
@@ -94,7 +108,8 @@ const VideoCall = ({ roomId }) => {
       }
       console.log("VideoCall component unmounted, socket disconnected.");
     };
-  }, [roomId, peer, SOCKET_SERVER_URL]); // Add SOCKET_SERVER_URL to dependencies
+  // REMOVED 'peer' from dependencies here. 'peer' is set *inside* the effect.
+  }, [roomId, SOCKET_SERVER_URL]); // ONLY roomId and SOCKET_SERVER_URL should be dependencies
 
   // Function to create a simple-peer instance (initiator)
   const createPeer = (userToSignal, callerId, mediaStream, socketInstance) => { // Accept socketInstance
