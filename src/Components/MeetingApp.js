@@ -8,14 +8,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import VideoCall from './VideoCall';
 import CreateMeeting from './CreateMeeting';
 import SlotPicker from './SlotPicker';
+import schoolLogo from '../assets/images/image.png'
 import '../App.css';
 
 // Define the API URL using an environment variable
 const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
 // If Socket.IO uses a different URL (though likely same as API on Railway)
 const SOCKET_IO_URL = process.env.REACT_APP_SOCKET_URL; // Add this if you use a separate one for socket.io initialization
-
-const schoolLogo = "";
 
 const MeetingApp = () => {
   const navigate = useNavigate();
@@ -33,7 +32,6 @@ const MeetingApp = () => {
   const [viewMode, setViewMode] = useState('initial');
 
   const mainContentRef = useRef(null);
-  const logoSrc = schoolLogo || "/default-logo.png";
 
   // ADD THESE LOGS HERE
   console.log("MeetingApp rendering. Current joined state:", joined);
@@ -332,7 +330,7 @@ const MeetingApp = () => {
     <>
       <header className="top-bar">
         <div className="left-section">
-          <img src={logoSrc} alt="School Logo" style={{ height: '40px', borderRadius: '50%' }} onError={(e) => { e.target.onerror = null; e.target.src = "/default-logo.png" }} />
+          <img src={schoolLogo} alt="School Logo" style={{ height: '40px', borderRadius: '50%' }} onError={(e) => { e.target.onerror = null; e.target.src = "src/assets/images/image.png" }} />
           <span style={{ marginLeft: '10px', fontSize: '20px', fontWeight: 'bold', color: 'white' }}>School App</span>
         </div>
       </header>
