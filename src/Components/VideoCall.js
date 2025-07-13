@@ -1,4 +1,17 @@
 // frontend/src/Components/VideoCall.js
+
+// Temporary polyfill for 'process is not defined' error in browsers
+// This should ideally be handled by your build system (e.g., Webpack/CRA)
+// but can be added here for quick testing.
+if (typeof process === 'undefined') {
+  window.process = {
+    env: {
+      NODE_ENV: 'production' // or 'development', depending on your build environment
+    }
+  };
+}
+// ... rest of your VideoCall.js code ...
+// frontend/src/Components/VideoCall.js
 import React, { useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer'; // Peer-to-peer connection library
 import io from 'socket.io-client'; // Socket.IO client for signaling
