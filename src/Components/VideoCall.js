@@ -1,4 +1,7 @@
 // frontend/src/Components/VideoCall.js
+import React, { useEffect, useRef, useState } from 'react';
+import Peer from 'simple-peer'; // Peer-to-peer connection library
+import io from 'socket.io-client'; // Socket.IO client for signaling
 
 // Temporary polyfill for 'process is not defined' error in browsers
 // This should ideally be handled by your build system (e.g., Webpack/CRA)
@@ -10,11 +13,7 @@ if (typeof process === 'undefined') {
     }
   };
 }
-// ... rest of your VideoCall.js code ...
-// frontend/src/Components/VideoCall.js
-import React, { useEffect, useRef, useState } from 'react';
-import Peer from 'simple-peer'; // Peer-to-peer connection library
-import io from 'socket.io-client'; // Socket.IO client for signaling
+
 
 // Define the Socket.IO server URL using an environment variable.
 // This should be the same as your backend API URL on Railway.
