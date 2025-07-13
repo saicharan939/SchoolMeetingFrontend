@@ -19,6 +19,7 @@ const VideoCall = ({ roomId }) => {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [messages, setMessages] = useState([]); // Assuming a chat feature might be here
+  const [socketConnected, setSocketConnected] = useState(false); // NEW: Socket connection status
 
   // This is the main useEffect that handles all setup and cleanup
   useEffect(() => {
@@ -26,8 +27,35 @@ const VideoCall = ({ roomId }) => {
     if (!socketRef.current) {
       socketRef.current = io(SOCKET_IO_URL); // CORRECTED: Use SOCKET_IO_URL
       console.log(`VideoCall: Attempting Socket.IO connection to: ${SOCKET_IO_URL}`);
+
+      // NEW: Socket connection event listeners - CRUCIAL FOR DEBUGGING
+      socketRef.current.on('connect', () => {
+        console.log('VideoCall: Socket connected! ID:', socketRef.current.id);
+        setSocketConnected(true); // Update state to connected
+        // Only emit 'join-room' AFTER successful connection
+        socketRef.current.emit('join-room', roomId);
+        console.log(`VideoCall: Emitted 'join-room' for roomId: ${roomId} after connect`);
+      });
+
+      socketRef.current.on('disconnect', (reason) => {
+        console.log('VideoCall: Socket disconnected!', reason);
+        setSocketConnected(false); // Update state to disconnected
+      });
+
+      socketRef.current.on('connect_error', (err) => {
+        console.error('VideoCall: Socket connection error:', err.message);
+        setSocketConnected(false); // Update state to disconnected on error
+      });
+
+      // NEW: Catch generic socket errors
+      socketRef.current.on('error', (err) => {
+        console.error('VideoCall: Generic Socket error:', err);
+      });
     }
+    // No need to redeclare socket constant here if it's within the 'if' block.
+    // If you need it outside, you'd define it after the 'if' block.
     const socket = socketRef.current;
+
 
     // Function to get user media
     const getMedia = async () => {
@@ -36,14 +64,15 @@ const VideoCall = ({ roomId }) => {
         // Store the stream in a ref, not state, to avoid unnecessary re-renders
         if (localVideoRef.current) {
             localVideoRef.current.srcObject = mediaStream;
+            console.log("VideoCall: Local video stream assigned to video element."); // NEW: Log for confirmation
         }
         localStreamRef.current = mediaStream; // Store in localStreamRef too
 
-        // 2. Emit 'join-room' event
-        socket.emit('join-room', roomId);
-        console.log(`VideoCall: Emitted 'join-room' for roomId: ${roomId}`);
+        // REMOVED: Moved 'join-room' event emission to the 'connect' handler for reliability.
+        // socket.emit('join-room', roomId);
+        // console.log(`VideoCall: Emitted 'join-room' for roomId: ${roomId}`);
 
-        // 3. Listen for Socket.IO events
+        // 3. Listen for Socket.IO events (these stay here)
         socket.on('user-joined', (userId) => {
           console.log(`VideoCall: User ${userId} joined the room. Initiating call.`);
           // Create a new Peer instance to initiate a call to the joined user
@@ -61,7 +90,7 @@ const VideoCall = ({ roomId }) => {
         socket.on('call-accepted', (payload) => {
           console.log(`VideoCall: Call accepted by ${payload.id}. Signaling back.`);
           // Signal the existing peer with the received answer
-          if (peerRef.current) { // CORRECTED: Use peerRef.current
+          if (peerRef.current) {
             peerRef.current.signal(payload.signal);
             console.log("VideoCall: Signaling peer with call-accepted signal.");
           } else {
@@ -74,17 +103,8 @@ const VideoCall = ({ roomId }) => {
           console.log("VideoCall: Received chat message:", msg);
         });
 
-        socket.on('connect', () => {
-            console.log('VideoCall: Socket connected!', socket.id);
-        });
-
-        socket.on('disconnect', () => {
-            console.log('VideoCall: Socket disconnected!');
-        });
-
-        socket.on('connect_error', (err) => {
-            console.error('VideoCall: Socket connection error:', err.message);
-        });
+        // The 'connect', 'disconnect', 'connect_error' listeners were moved outside this function
+        // and into the main useEffect's initial socket setup for clarity and proper lifecycle.
 
       } catch (error) {
         console.error("VideoCall: Error accessing media devices:", error);
@@ -110,13 +130,13 @@ const VideoCall = ({ roomId }) => {
         console.log("VideoCall: Socket disconnected.");
       }
       // Stop all tracks for the local stream
-      if (localStreamRef.current) { // CORRECTED: Use localStreamRef.current
+      if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(track => track.stop());
         localStreamRef.current = null;
         console.log("VideoCall: Local media stream tracks stopped.");
       }
       // Stop remote stream tracks if you manage them (though simple-peer handles this largely)
-      if (remoteStreamRef.current) { // CORRECTED: Use remoteStreamRef.current
+      if (remoteStreamRef.current) {
         remoteStreamRef.current.getTracks().forEach(track => track.stop());
         remoteStreamRef.current = null;
         console.log("VideoCall: Remote media stream tracks stopped.");
@@ -218,7 +238,7 @@ const VideoCall = ({ roomId }) => {
 
   // Toggle local audio track
   const toggleAudio = () => {
-    if (!localStreamRef.current) return; // CORRECTED: Use localStreamRef.current
+    if (!localStreamRef.current) return;
     localStreamRef.current.getAudioTracks().forEach(track => {
       track.enabled = !track.enabled;
       setAudioEnabled(track.enabled);
@@ -228,7 +248,7 @@ const VideoCall = ({ roomId }) => {
 
   // Toggle local video track
   const toggleVideo = () => {
-    if (!localStreamRef.current) return; // CORRECTED: Use localStreamRef.current
+    if (!localStreamRef.current) return;
     localStreamRef.current.getVideoTracks().forEach(track => {
       track.enabled = !track.enabled;
       setVideoEnabled(track.enabled);
@@ -248,6 +268,11 @@ const VideoCall = ({ roomId }) => {
       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
     }}>
       <h3 style={{ color: '#333' }}>Meeting Room: {roomId}</h3>
+      {/* NEW: Display socket connection status for debugging */}
+      <p style={{ color: socketConnected ? 'green' : 'red' }}>
+        Socket Status: {socketConnected ? 'Connected' : 'Disconnected'}
+      </p>
+
       <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* Local Video Stream */}
         <div style={{
