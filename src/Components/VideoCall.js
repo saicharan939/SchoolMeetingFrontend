@@ -1,4 +1,3 @@
-// frontend/src/Components/VideoCall.js
 import React, { useRef, useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import SimplePeer from 'simple-peer';
@@ -12,23 +11,23 @@ const VideoCall = ({ roomId }) => {
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const peerRef = useRef(); // This will store the SimplePeer instance
-  const localStreamRef = useRef(); // ADDED: To store the local media stream object
-  const remoteStreamRef = useRef(); // ADDED: To store the remote media stream object
+  const localStreamRef = useRef(); // To store the local media stream object
+  const remoteStreamRef = useRef(); // To store the remote media stream object
 
   // Use state for UI-related toggles and data that causes re-renders
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [messages, setMessages] = useState([]); // Assuming a chat feature might be here
-  const [socketConnected, setSocketConnected] = useState(false); // NEW: Socket connection status
+  const [socketConnected, setSocketConnected] = useState(false); // Socket connection status
 
   // This is the main useEffect that handles all setup and cleanup
   useEffect(() => {
     // 1. Initialize socket connection
     if (!socketRef.current) {
-      socketRef.current = io(SOCKET_IO_URL); // CORRECTED: Use SOCKET_IO_URL
+      socketRef.current = io(SOCKET_IO_URL);
       console.log(`VideoCall: Attempting Socket.IO connection to: ${SOCKET_IO_URL}`);
 
-      // NEW: Socket connection event listeners - CRUCIAL FOR DEBUGGING
+      // Socket connection event listeners - CRUCIAL FOR DEBUGGING
       socketRef.current.on('connect', () => {
         console.log('VideoCall: Socket connected! ID:', socketRef.current.id);
         setSocketConnected(true); // Update state to connected
@@ -47,15 +46,12 @@ const VideoCall = ({ roomId }) => {
         setSocketConnected(false); // Update state to disconnected on error
       });
 
-      // NEW: Catch generic socket errors
+      // Catch generic socket errors
       socketRef.current.on('error', (err) => {
         console.error('VideoCall: Generic Socket error:', err);
       });
     }
-    // No need to redeclare socket constant here if it's within the 'if' block.
-    // If you need it outside, you'd define it after the 'if' block.
-    const socket = socketRef.current;
-
+    const socket = socketRef.current; // Get the current socket instance
 
     // Function to get user media
     const getMedia = async () => {
@@ -64,18 +60,15 @@ const VideoCall = ({ roomId }) => {
         // Store the stream in a ref, not state, to avoid unnecessary re-renders
         if (localVideoRef.current) {
             localVideoRef.current.srcObject = mediaStream;
-            console.log("VideoCall: Local video stream assigned to video element."); // NEW: Log for confirmation
+            console.log("VideoCall: Local video stream assigned to video element.");
         }
         localStreamRef.current = mediaStream; // Store in localStreamRef too
-
-        // REMOVED: Moved 'join-room' event emission to the 'connect' handler for reliability.
-        // socket.emit('join-room', roomId);
-        // console.log(`VideoCall: Emitted 'join-room' for roomId: ${roomId}`);
 
         // 3. Listen for Socket.IO events (these stay here)
         socket.on('user-joined', (userId) => {
           console.log(`VideoCall: User ${userId} joined the room. Initiating call.`);
           // Create a new Peer instance to initiate a call to the joined user
+          // Pass the initiator's ID (socket.id) to createPeer
           const newPeer = createPeer(userId, socket.id, mediaStream, socket);
           peerRef.current = newPeer; // Store peer instance in ref
         });
@@ -83,7 +76,8 @@ const VideoCall = ({ roomId }) => {
         socket.on('receive-call', (payload) => {
           console.log(`VideoCall: Receiving call from ${payload.callerId}.`);
           // Add a new Peer instance to answer the incoming call
-          const newPeer = addPeer(payload.signal, mediaStream, socket);
+          // CORRECTED: Pass payload.callerId as a separate argument
+          const newPeer = addPeer(payload.signal, payload.callerId, mediaStream, socket);
           peerRef.current = newPeer; // Store peer instance in ref
         });
 
@@ -102,9 +96,6 @@ const VideoCall = ({ roomId }) => {
           setMessages((prev) => [...prev, msg]);
           console.log("VideoCall: Received chat message:", msg);
         });
-
-        // The 'connect', 'disconnect', 'connect_error' listeners were moved outside this function
-        // and into the main useEffect's initial socket setup for clarity and proper lifecycle.
 
       } catch (error) {
         console.error("VideoCall: Error accessing media devices:", error);
@@ -150,16 +141,17 @@ const VideoCall = ({ roomId }) => {
       initiator: true,
       trickle: false,
       stream: mediaStream,
-      // Add STUN/TURN servers if behind NAT. Example:
-      // config: {
-      //   iceServers: [
-      //     { urls: 'stun:stun.l.google.com:19302' },
-      //     // { urls: 'turn:YOUR_TURN_SERVER_IP:YOUR_TURN_SERVER_PORT', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
-      //   ]
-      // }
+      config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            // Add TURN servers if behind strict NAT. Example:
+            // { urls: 'turn:YOUR_TURN_SERVER_IP:YOUR_TURN_SERVER_PORT', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
+        ]
+      }
     });
 
     newPeer.on('signal', (signal) => {
+      // Initiator sends its offer
       socketInstance.emit('send-call', { userToSignal, callerId, signal });
       console.log("VideoCall: Emitted 'send-call' signal.");
     });
@@ -191,21 +183,25 @@ const VideoCall = ({ roomId }) => {
   };
 
   // Function to add a simple-peer instance (non-initiator, answering a call)
-  const addPeer = (incomingSignal, mediaStream, socketInstance) => {
+  // CORRECTED: Added callerIdFromPayload parameter
+  const addPeer = (incomingSignal, callerIdFromPayload, mediaStream, socketInstance) => {
     const newPeer = new SimplePeer({
-      initiator: false,
+      initiator: false, // This should be false for the receiving peer
       trickle: false,
       stream: mediaStream,
-      // Add STUN/TURN servers if behind NAT. Example:
-      // config: {
-      //   iceServers: [
-      //     { urls: 'stun:stun.l.google.com:19302' },
-      //   ]
-      // }
+      config: {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            // Add TURN servers if behind strict NAT. Example:
+            // { urls: 'turn:YOUR_TURN_SERVER_IP:YOUR_TURN_SERVER_PORT', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
+        ]
+      }
     });
 
     newPeer.on('signal', (signal) => {
-      socketInstance.emit('accept-call', { callerId: incomingSignal.callerId, signal });
+      // Receiver sends its answer
+      // CORRECTED: Use the passed callerIdFromPayload
+      socketInstance.emit('accept-call', { callerId: callerIdFromPayload, signal });
       console.log("VideoCall: Emitted 'accept-call' signal.");
     });
 
