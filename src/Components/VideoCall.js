@@ -1,180 +1,235 @@
 // frontend/src/Components/VideoCall.js
-import React, { useEffect, useRef, useState } from 'react';
-import Peer from 'simple-peer'; // Peer-to-peer connection library
-import io from 'socket.io-client'; // Socket.IO client for signaling
+import React, { useRef, useState, useEffect } from 'react';
+import io from 'socket.io-client';
+import SimplePeer from 'simple-peer';
 
-// Define the Socket.IO server URL using an environment variable.
-// This should be the same as your backend API URL on Railway.
-const SOCKET_SERVER_URL = process.env.REACT_APP_BACKEND_API_URL;
+// Define the Socket.IO URL using an environment variable
+// Ensure you have REACT_APP_SOCKET_URL set in your .env file on Vercel and locally.
+const SOCKET_IO_URL = process.env.REACT_APP_SOCKET_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app';
 
 const VideoCall = ({ roomId }) => {
-  const localVideoRef = useRef(null); // Ref for local video element
-  const remoteVideoRef = useRef(null); // Ref for remote video element
-  const [stream, setStream] = useState(null); // State for local media stream
-  const [peer, setPeer] = useState(null); // State for the simple-peer instance
-  const [audioEnabled, setAudioEnabled] = useState(true); // State for audio toggle
-  const [videoEnabled, setVideoEnabled] = useState(true); // State for video toggle
-  const [messages, setMessages] = useState([]); // State for chat messages (if chat was implemented)
-  const [newMessage, setNewMessage] = useState(''); // State for new chat message input
+  const socketRef = useRef();
+  const localVideoRef = useRef();
+  const remoteVideoRef = useRef();
+  const peerRef = useRef(); // This will store the SimplePeer instance
 
-  // Declare socket outside, but initialize within useEffect for correct env var usage
-  const socketRef = useRef(null);
+  // Use state for UI-related toggles and data that causes re-renders
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [messages, setMessages] = useState([]); // Assuming a chat feature might be here
 
+  // This is the main useEffect that handles all setup and cleanup
   useEffect(() => {
-    // Initialize socket connection here, using the environment variable
+    // 1. Initialize socket connection
     if (!socketRef.current) {
-        socketRef.current = io(SOCKET_SERVER_URL);
-        console.log(`Attempting Socket.IO connection to: ${SOCKET_SERVER_URL}`);
+      socketRef.current = io(SOCKET_IO_URL); // CORRECTED: Use SOCKET_IO_URL
+      console.log(`VideoCall: Attempting Socket.IO connection to: ${SOCKET_IO_URL}`);
     }
     const socket = socketRef.current;
 
+    // Function to get user media
+    const getMedia = async () => {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        // Store the stream in a ref, not state, to avoid unnecessary re-renders
+        localVideoRef.current.srcObject = mediaStream;
+        localStreamRef.current = mediaStream; // Store in localStreamRef too
 
-    // Request access to user's media devices (webcam and microphone)
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((mediaStream) => {
-        setStream(mediaStream); // Set the local media stream
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = mediaStream; // Display local stream in video element
-        }
-
-        // Emit 'join-room' event to the Socket.IO server
+        // 2. Emit 'join-room' event
         socket.emit('join-room', roomId);
+        console.log(`VideoCall: Emitted 'join-room' for roomId: ${roomId}`);
 
-        // Listen for 'user-joined' event from the server
+        // 3. Listen for Socket.IO events
         socket.on('user-joined', (userId) => {
-          console.log(`User ${userId} joined the room. Initiating call.`);
+          console.log(`VideoCall: User ${userId} joined the room. Initiating call.`);
           // Create a new Peer instance to initiate a call to the joined user
-          const newPeer = createPeer(userId, socket.id, mediaStream, socket); // Pass socket
-          setPeer(newPeer); // Store the peer instance
+          const newPeer = createPeer(userId, socket.id, mediaStream, socket);
+          peerRef.current = newPeer; // Store peer instance in ref
         });
 
-        // Listen for 'receive-call' event (incoming call offer)
         socket.on('receive-call', (payload) => {
-          console.log(`Receiving call from ${payload.callerId}.`);
+          console.log(`VideoCall: Receiving call from ${payload.callerId}.`);
           // Add a new Peer instance to answer the incoming call
-          const newPeer = addPeer(payload.signal, mediaStream, socket); // Pass socket
-          setPeer(newPeer); // Store the peer instance
+          const newPeer = addPeer(payload.signal, mediaStream, socket);
+          peerRef.current = newPeer; // Store peer instance in ref
         });
 
-        // Listen for 'call-accepted' event (answer to our offer)
         socket.on('call-accepted', (payload) => {
-          console.log(`Call accepted by ${payload.id}. Signaling back.`);
+          console.log(`VideoCall: Call accepted by ${payload.id}. Signaling back.`);
           // Signal the existing peer with the received answer
-          // IMPORTANT: Check if peer exists before signaling
-          if (peer) { // Add this check
-              peer.signal(payload.signal);
+          if (peerRef.current) { // CORRECTED: Use peerRef.current
+            peerRef.current.signal(payload.signal);
+            console.log("VideoCall: Signaling peer with call-accepted signal.");
           } else {
-              console.warn("Peer not yet initialized when call-accepted received. This might be a timing issue.");
+            console.warn("VideoCall: Peer not yet initialized when call-accepted received. This might be a timing issue.");
           }
         });
 
-        // Listen for 'chat-message' event (if chat was implemented)
         socket.on('chat-message', (msg) => {
           setMessages((prev) => [...prev, msg]);
+          console.log("VideoCall: Received chat message:", msg);
         });
-      })
-      .catch(error => {
-        console.error("Error accessing media devices:", error);
-        alert("Could not access camera/microphone. Please ensure permissions are granted.");
-      });
 
-    // Cleanup function: disconnect socket when component unmounts
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop()); // Stop all media tracks
+        socket.on('connect', () => {
+            console.log('VideoCall: Socket connected!', socket.id);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('VideoCall: Socket disconnected!');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('VideoCall: Socket connection error:', err.message);
+        });
+
+      } catch (error) {
+        console.error("VideoCall: Error accessing media devices:", error);
+        alert("Could not access camera/microphone. Please ensure permissions are granted and try again.");
       }
-      if (peer) {
-        peer.destroy(); // Destroy the peer connection
+    };
+
+    // Call the function to get media when component mounts
+    getMedia();
+
+    // 4. Cleanup function: disconnect socket and destroy peer when component unmounts
+    return () => {
+      console.log("VideoCall component is UNMOUNTING. Cleaning up resources.");
+
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+        console.log("VideoCall: SimplePeer destroyed.");
       }
       if (socketRef.current) {
-          socketRef.current.disconnect(); // Disconnect from Socket.IO server
-          socketRef.current = null; // Clear ref
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        console.log("VideoCall: Socket disconnected.");
       }
-      console.log("VideoCall component unmounted, socket disconnected.");
+      // Stop all tracks for the local stream
+      if (localVideoRef.current && localVideoRef.current.srcObject) {
+        localVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        localVideoRef.current.srcObject = null;
+        console.log("VideoCall: Local media stream tracks stopped.");
+      }
+      // Stop remote stream tracks if you manage them (though simple-peer handles this largely)
+      if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+        remoteVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        remoteVideoRef.current.srcObject = null;
+        console.log("VideoCall: Remote media stream tracks stopped.");
+      }
     };
-  // REMOVED 'peer' from dependencies here. 'peer' is set *inside* the effect.
-  }, [roomId, SOCKET_SERVER_URL]); // ONLY roomId and SOCKET_SERVER_URL should be dependencies
+  }, [roomId]); // Dependency array: only re-run if roomId changes
 
   // Function to create a simple-peer instance (initiator)
-  const createPeer = (userToSignal, callerId, mediaStream, socketInstance) => { // Accept socketInstance
-    const newPeer = new Peer({
-      initiator: true, // This peer initiates the connection
+  const createPeer = (userToSignal, callerId, mediaStream, socketInstance) => {
+    const newPeer = new SimplePeer({ // CORRECTED: Use SimplePeer directly
+      initiator: true,
       trickle: false, // Use full SDP offers/answers, not trickle ICE candidates
       stream: mediaStream, // Attach local media stream
+      // Add STUN/TURN servers if behind NAT. Example:
+      // config: {
+      //   iceServers: [
+      //     { urls: 'stun:stun.l.google.com:19302' },
+      //     // { urls: 'turn:YOUR_TURN_SERVER_IP:YOUR_TURN_SERVER_PORT', username: 'YOUR_USERNAME', credential: 'YOUR_PASSWORD' }
+      //   ]
+      // }
     });
 
-    // When the peer generates a signaling offer
     newPeer.on('signal', (signal) => {
-      // Send the offer to the other user via the Socket.IO server
       socketInstance.emit('send-call', { userToSignal, callerId, signal });
+      console.log("VideoCall: Emitted 'send-call' signal.");
     });
 
-    // When the peer receives a remote stream
     newPeer.on('stream', (remoteStream) => {
-      console.log('Received remote stream.');
-      // Display the remote stream in the remote video element
+      console.log('VideoCall: Received remote stream.');
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     });
 
-    // Handle peer errors
+    newPeer.on('connect', () => {
+      console.log('VideoCall: Peer connected!');
+    });
+
+    newPeer.on('close', () => {
+      console.log('VideoCall: Peer closed.');
+      // Handle peer closing, e.g., reset remote video
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+    });
+
     newPeer.on('error', (err) => {
-      console.error('Peer error:', err);
+      console.error('VideoCall: SimplePeer error:', err);
     });
 
     return newPeer;
   };
 
   // Function to add a simple-peer instance (non-initiator, answering a call)
-  const addPeer = (incomingSignal, mediaStream, socketInstance) => { // Accept socketInstance
-    const newPeer = new Peer({
-      initiator: false, // This peer answers the connection
+  const addPeer = (incomingSignal, mediaStream, socketInstance) => {
+    const newPeer = new SimplePeer({ // CORRECTED: Use SimplePeer directly
+      initiator: false,
       trickle: false,
-      stream: mediaStream, // Attach local media stream
+      stream: mediaStream,
+      // Add STUN/TURN servers if behind NAT. Example:
+      // config: {
+      //   iceServers: [
+      //     { urls: 'stun:stun.l.google.com:19302' },
+      //   ]
+      // }
     });
 
-    // When the peer generates a signaling answer
     newPeer.on('signal', (signal) => {
-      // Send the answer back to the caller via the Socket.IO server
       socketInstance.emit('accept-call', { callerId: incomingSignal.callerId, signal });
+      console.log("VideoCall: Emitted 'accept-call' signal.");
     });
 
-    // When the peer receives a remote stream
     newPeer.on('stream', (remoteStream) => {
-      console.log('Received remote stream.');
-      // Display the remote stream in the remote video element
+      console.log('VideoCall: Received remote stream.');
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     });
 
-    // Handle peer errors
-    newPeer.on('error', (err) => {
-      console.error('Peer error:', err);
+    newPeer.on('connect', () => {
+      console.log('VideoCall: Peer connected!');
     });
 
-    // Signal the peer with the incoming offer
-    newPeer.signal(incomingSignal);
+    newPeer.on('close', () => {
+      console.log('VideoCall: Peer closed.');
+      // Handle peer closing
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = null;
+      }
+    });
+
+    newPeer.on('error', (err) => {
+      console.error('VideoCall: SimplePeer error:', err);
+    });
+
+    newPeer.signal(incomingSignal); // Signal the peer with the incoming offer
     return newPeer;
   };
 
   // Toggle local audio track
   const toggleAudio = () => {
-    if (!stream) return;
-    stream.getAudioTracks().forEach(track => {
+    if (!localVideoRef.current || !localVideoRef.current.srcObject) return; // CORRECTED: Check ref.srcObject
+    localVideoRef.current.srcObject.getAudioTracks().forEach(track => {
       track.enabled = !track.enabled;
       setAudioEnabled(track.enabled);
     });
+    console.log("VideoCall: Audio toggled to:", !audioEnabled);
   };
 
   // Toggle local video track
   const toggleVideo = () => {
-    if (!stream) return;
-    stream.getVideoTracks().forEach(track => {
+    if (!localVideoRef.current || !localVideoRef.current.srcObject) return; // CORRECTED: Check ref.srcObject
+    localVideoRef.current.srcObject.getVideoTracks().forEach(track => {
       track.enabled = !track.enabled;
       setVideoEnabled(track.enabled);
     });
+    console.log("VideoCall: Video toggled to:", !videoEnabled);
   };
 
   return (
