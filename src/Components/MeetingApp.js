@@ -12,7 +12,7 @@ import schoolLogo from '../assets/images/image.png'
 import '../App.css';
 
 // Define the API URL using an environment variable
-const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app'; // Added fallback
 // If Socket.IO uses a different URL (though likely same as API on Railway)
 const SOCKET_IO_URL = process.env.REACT_APP_SOCKET_URL; // Add this if you use a separate one for socket.io initialization
 
@@ -30,15 +30,12 @@ const MeetingApp = () => {
   const [countdown, setCountdown] = useState(0);
 
   const [viewMode, setViewMode] = useState('initial');
+  const [createdWhatsappLink, setCreatedWhatsappLink] = useState(''); // <--- NEW STATE FOR WHATSAPP LINK
 
-  const mainContentRef = useRef(null);
-
-  // ADD THESE LOGS HERE
   console.log("MeetingApp rendering. Current joined state:", joined);
   console.log("MeetingApp rendering. Current viewMode:", viewMode);
 
   useEffect(() => {
-    // ADD THESE LOGS HERE
     console.log("MeetingApp useEffect triggered. urlMeetingId:", urlMeetingId);
     console.log("MeetingApp useEffect: joined state on effect run:", joined);
     console.log("MeetingApp useEffect: viewMode state on effect run:", viewMode);
@@ -103,7 +100,6 @@ const MeetingApp = () => {
 
   const handleJoin = async () => {
     try {
-      // Use the environment variable for the backend URL
       const res = await axios.get(`${BACKEND_API_URL}/validate-meeting/${roomId}`);
       if (res.data.valid) {
         if (res.data.slotTime) {
@@ -129,8 +125,10 @@ const MeetingApp = () => {
     enableJoinButton(slotTime);
   };
 
-  const handleCreatedMeeting = (id) => {
+  // <--- IMPORTANT CHANGE HERE: handleCreatedMeeting now accepts whatsappLink
+  const handleCreatedMeeting = (id, whatsappLinkFromCreate) => {
     setRoomId(id);
+    setCreatedWhatsappLink(whatsappLinkFromCreate); // Store the link
     setViewMode('slotPicker');
   };
 
@@ -218,7 +216,6 @@ const MeetingApp = () => {
   }
 
   const renderContent = () => {
-    // ADD THESE LOGS HERE
     console.log("renderContent function called. Current joined state:", joined);
     console.log("renderContent function called. Current viewMode:", viewMode);
 
@@ -231,7 +228,8 @@ const MeetingApp = () => {
       case 'initial':
         return (
           <>
-            <CreateMeeting onCreated={handleCreatedMeeting} />
+            {/* <--- IMPORTANT CHANGE HERE: Passing whatsappLink to onCreated */}
+            <CreateMeeting onCreated={(id, whatsappLink) => handleCreatedMeeting(id, whatsappLink)} />
             <h3 style={{ marginTop: '30px', color: '#333' }}>Or Join an Existing Meeting by ID</h3>
             <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <input
@@ -281,9 +279,11 @@ const MeetingApp = () => {
       case 'slotPicker':
         return (
           <>
+            {/* <--- IMPORTANT CHANGE HERE: Passing createdWhatsappLink to SlotPicker */}
             <SlotPicker
               roomId={roomId}
               onSlotConfirmed={handleSlotConfirmed}
+              whatsappLink={createdWhatsappLink} // <--- Pass the link here
             />
             {slotConfirmed && (
               <div style={{ marginTop: '20px', textAlign: 'center', padding: '15px', backgroundColor: '#e9f7ef', borderRadius: '8px', border: '1px solid #d0e9e0' }}>

@@ -41,12 +41,10 @@ const CreateMeeting = ({ onCreated }) => {
 
         setMeetingId(meetingId);
         setWhatsappLink(generatedWaMeLink);
-        // --- NEW CONSOLE LOG ADDED HERE ---
-        console.log("CreateMeeting: Generated WhatsApp Link:", generatedWaMeLink);
-        // --- END NEW CONSOLE LOG ---
+        console.log("CreateMeeting: Generated WhatsApp Link:", generatedWaMeLink); // Keep this for debugging
 
         alert('Meeting created! Now share the link via WhatsApp.');
-        onCreated(meetingId);
+        onCreated(meetingId, generatedWaMeLink); // <--- IMPORTANT CHANGE HERE: Passing whatsappLink
         setPhoneNumber('');
       } else {
         setError(res.data.message || 'Failed to create meeting.');
@@ -103,30 +101,13 @@ const CreateMeeting = ({ onCreated }) => {
         </p>
       )}
 
+      {/* This section will no longer show the WhatsApp button, as it's moved to SlotPicker */}
       {meetingId && whatsappLink && (
         <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#e9f7ef', borderLeft: '5px solid #28a745', borderRadius: '4px' }}>
           <p style={{ fontWeight: 'bold', color: '#28a745' }}>Meeting Created!</p>
           <p>Generated Meeting ID: <code style={{ backgroundColor: '#fff', padding: '2px 4px', borderRadius: '3px' }}>{meetingId}</code></p>
-          <p style={{ marginTop: '10px' }}>Click the button below to share the invitation via WhatsApp:</p>
-          <a
-            href={whatsappLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-block',
-              backgroundColor: '#25D366', // WhatsApp green
-              color: 'white',
-              padding: '10px 15px',
-              borderRadius: '5px',
-              textDecoration: 'none',
-              marginTop: '10px',
-              fontSize: '16px',
-            }}
-          >
-            Share via WhatsApp 💬
-          </a>
-          <p style={{ marginTop: '15px', fontSize: '0.9em', color: '#555' }}>
-            (Ensure the recipient's phone number includes the country code, e.g., +91 for India.)
+          <p style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
+            (Now proceed to select a slot, and the share option will appear.)
           </p>
         </div>
       )}
