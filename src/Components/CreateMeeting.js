@@ -6,14 +6,13 @@ import axios from 'axios';
 const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app'; // Added fallback
 
 const CreateMeeting = ({ onCreated }) => {
-  const [phoneNumber, setPhoneNumber] = useState(''); // Changed from email to phoneNumber
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [meetingId, setMeetingId] = useState('');
-  const [whatsappLink, setWhatsappLink] = useState(''); // New state for WhatsApp link
+  const [whatsappLink, setWhatsappLink] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null); // New state for error messages
+  const [error, setError] = useState(null);
 
   const handleCreate = async () => {
-    // Clear previous states
     setError(null);
     setWhatsappLink('');
     setMeetingId('');
@@ -23,33 +22,32 @@ const CreateMeeting = ({ onCreated }) => {
       return;
     }
 
-    // Optional: Basic formatting for phone number to ensure it has a '+' prefix
-    // WhatsApp typically expects numbers with country codes, e.g., +919876543210
     const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
 
     setLoading(true);
     try {
       const res = await axios.post(`${BACKEND_API_URL}/create-meeting`, {
-        recipientPhoneNumber: formattedPhoneNumber // Changed from recipientEmail to recipientPhoneNumber
+        recipientPhoneNumber: formattedPhoneNumber
       });
 
       if (res.data.success) {
         const { meetingLink, meetingId, recipientPhoneNumber: returnedPhoneNumber } = res.data;
 
-        // Encode the meeting message for the WhatsApp URL
         const encodedMessage = encodeURIComponent(
           `You've been invited to a meeting!\n\nClick here to join: ${meetingLink}\n\nMeeting ID: ${meetingId}\n\nThis invitation link will expire in 30 minutes.`
         );
 
-        // Generate the WhatsApp "Click to Chat" link
-        // For wa.me links, the phone number should NOT have a '+' at the beginning. WhatsApp handles it.
         const generatedWaMeLink = `https://wa.me/${returnedPhoneNumber.replace(/\+/g, '')}?text=${encodedMessage}`;
 
         setMeetingId(meetingId);
-        setWhatsappLink(generatedWaMeLink); // Store the generated link
-        alert('Meeting created! Now share the link via WhatsApp.'); // Updated alert
-        onCreated(meetingId); // Still call onCreated if it's used by a parent component
-        setPhoneNumber(''); // Clear the input field
+        setWhatsappLink(generatedWaMeLink);
+        // --- NEW CONSOLE LOG ADDED HERE ---
+        console.log("CreateMeeting: Generated WhatsApp Link:", generatedWaMeLink);
+        // --- END NEW CONSOLE LOG ---
+
+        alert('Meeting created! Now share the link via WhatsApp.');
+        onCreated(meetingId);
+        setPhoneNumber('');
       } else {
         setError(res.data.message || 'Failed to create meeting.');
       }
@@ -66,10 +64,10 @@ const CreateMeeting = ({ onCreated }) => {
       <h3 style={{ color: '#333', marginBottom: '15px' }}>Create & Invite New Meeting</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <input
-          type="tel" // Changed to type="tel" for phone numbers
-          placeholder="Recipient WhatsApp Number (e.g., +919876543210)" // Updated placeholder
+          type="tel"
+          placeholder="Recipient WhatsApp Number (e.g., +919876543210)"
           value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)} // Changed from setEmail to setPhoneNumber
+          onChange={(e) => setPhoneNumber(e.target.value)}
           style={{
             flexGrow: 1,
             padding: '10px',
