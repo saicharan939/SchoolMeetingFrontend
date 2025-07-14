@@ -2,19 +2,16 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-// Define the API URL using an environment variable
-const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app'; // Added fallback
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app';
 
 const CreateMeeting = ({ onCreated }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [meetingId, setMeetingId] = useState('');
-  const [whatsappLink, setWhatsappLink] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleCreate = async () => {
     setError(null);
-    setWhatsappLink('');
     setMeetingId('');
 
     if (!phoneNumber.trim()) {
@@ -26,28 +23,40 @@ const CreateMeeting = ({ onCreated }) => {
 
     setLoading(true);
     try {
-      const res = await axios.post(`${BACKEND_API_URL}/create-meeting`, {
+      // Step 1: Create the meeting in your backend
+      const createMeetingRes = await axios.post(`${BACKEND_API_URL}/create-meeting`, {
         recipientPhoneNumber: formattedPhoneNumber
       });
 
-      if (res.data.success) {
-        const { meetingLink, meetingId, recipientPhoneNumber: returnedPhoneNumber } = res.data;
-
-        const encodedMessage = encodeURIComponent(
-          `You've been invited to a meeting!\n\nClick here to join: ${meetingLink}\n\nMeeting ID: ${meetingId}\n\nThis invitation link will expire in 30 minutes.`
-        );
-
-        const generatedWaMeLink = `https://wa.me/${returnedPhoneNumber.replace(/\+/g, '')}?text=${encodedMessage}`;
+      if (createMeetingRes.data.success) {
+        const { meetingLink, meetingId, recipientPhoneNumber: returnedPhoneNumber } = createMeetingRes.data;
 
         setMeetingId(meetingId);
-        setWhatsappLink(generatedWaMeLink);
-        console.log("CreateMeeting: Generated WhatsApp Link:", generatedWaMeLink); // Keep this for debugging
 
-        alert('Meeting created! Now share the link via WhatsApp.');
-        onCreated(meetingId, generatedWaMeLink); // <--- IMPORTANT CHANGE HERE: Passing whatsappLink
+        // Step 2: Trigger the automated WhatsApp message send via your backend's Twilio endpoint
+        try {
+          const expirationText = "30 minutes"; // Customize this based on your link expiry logic
+          const sendWhatsappRes = await axios.post(`${BACKEND_API_URL}/send-whatsapp-invite-twilio`, { // <--- CALLING NEW TWILIO ENDPOINT
+            recipientPhoneNumber: returnedPhoneNumber,
+            meetingLink: meetingLink,
+            meetingId: meetingId,
+            expirationTime: expirationText
+          });
+
+          if (sendWhatsappRes.data.success) {
+            alert('Meeting created and WhatsApp invitation sent successfully via Twilio!');
+            onCreated(meetingId);
+          } else {
+            setError(sendWhatsappRes.data.message || 'Failed to send WhatsApp invitation via Twilio.');
+          }
+        } catch (whatsappErr) {
+          console.error('Error triggering WhatsApp send via Twilio backend:', whatsappErr.response?.data?.message || whatsappErr.message);
+          setError(whatsappErr.response?.data?.message || 'An error occurred while sending WhatsApp invitation via Twilio.');
+        }
+
         setPhoneNumber('');
       } else {
-        setError(res.data.message || 'Failed to create meeting.');
+        setError(createMeetingRes.data.message || 'Failed to create meeting.');
       }
     } catch (err) {
       console.error('Error creating meeting:', err.response?.data?.message || err.message);
@@ -101,13 +110,12 @@ const CreateMeeting = ({ onCreated }) => {
         </p>
       )}
 
-      {/* This section will no longer show the WhatsApp button, as it's moved to SlotPicker */}
-      {meetingId && whatsappLink && (
+      {meetingId && (
         <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#e9f7ef', borderLeft: '5px solid #28a745', borderRadius: '4px' }}>
           <p style={{ fontWeight: 'bold', color: '#28a745' }}>Meeting Created!</p>
           <p>Generated Meeting ID: <code style={{ backgroundColor: '#fff', padding: '2px 4px', borderRadius: '3px' }}>{meetingId}</code></p>
           <p style={{ marginTop: '10px', fontSize: '0.9em', color: '#555' }}>
-            (Now proceed to select a slot, and the share option will appear.)
+            (WhatsApp invitation sent automatically. Now proceed to select a slot.)
           </p>
         </div>
       )}
