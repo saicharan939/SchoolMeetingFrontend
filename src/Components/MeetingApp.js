@@ -1,5 +1,5 @@
 // frontend/src/Components/MeetingApp.js
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react'; // <--- ADD useRef here
 import { Download, Share, ArrowLeft } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -30,7 +30,9 @@ const MeetingApp = () => {
   const [countdown, setCountdown] = useState(0);
 
   const [viewMode, setViewMode] = useState('initial');
-  const [createdWhatsappLink, setCreatedWhatsappLink] = useState(''); // <--- NEW STATE FOR WHATSAPP LINK
+  const [createdWhatsappLink, setCreatedWhatsappLink] = useState('');
+
+  const mainContentRef = useRef(null); // <--- IMPORTANT: ADD THIS LINE
 
   console.log("MeetingApp rendering. Current joined state:", joined);
   console.log("MeetingApp rendering. Current viewMode:", viewMode);
@@ -68,7 +70,7 @@ const MeetingApp = () => {
     } else {
       setViewMode('initial');
     }
-  }, [urlMeetingId]); // This dependency array is correct for this effect.
+  }, [urlMeetingId]);
 
   const enableJoinButton = (slotTime) => {
     const [hours, minutes] = slotTime.split(':').map(Number);
@@ -92,10 +94,6 @@ const MeetingApp = () => {
       }
     }, 1000);
 
-    // IMPORTANT: This setInterval needs to be managed with a useEffect cleanup to avoid multiple intervals
-    // However, this is not the cause of the current unmount issue.
-    // For now, keep it as is, but be aware of it for future refinement.
-    // return () => clearInterval(interval); // This return doesn't do anything here as it's not in useEffect
   };
 
   const handleJoin = async () => {
@@ -125,10 +123,9 @@ const MeetingApp = () => {
     enableJoinButton(slotTime);
   };
 
-  // <--- IMPORTANT CHANGE HERE: handleCreatedMeeting now accepts whatsappLink
   const handleCreatedMeeting = (id, whatsappLinkFromCreate) => {
     setRoomId(id);
-    setCreatedWhatsappLink(whatsappLinkFromCreate); // Store the link
+    setCreatedWhatsappLink(whatsappLinkFromCreate);
     setViewMode('slotPicker');
   };
 
@@ -228,7 +225,6 @@ const MeetingApp = () => {
       case 'initial':
         return (
           <>
-            {/* <--- IMPORTANT CHANGE HERE: Passing whatsappLink to onCreated */}
             <CreateMeeting onCreated={(id, whatsappLink) => handleCreatedMeeting(id, whatsappLink)} />
             <h3 style={{ marginTop: '30px', color: '#333' }}>Or Join an Existing Meeting by ID</h3>
             <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', gap: '10px' }}>
@@ -279,18 +275,17 @@ const MeetingApp = () => {
       case 'slotPicker':
         return (
           <>
-            {/* <--- IMPORTANT CHANGE HERE: Passing createdWhatsappLink to SlotPicker */}
             <SlotPicker
               roomId={roomId}
               onSlotConfirmed={handleSlotConfirmed}
-              whatsappLink={createdWhatsappLink} // <--- Pass the link here
+              whatsappLink={createdWhatsappLink}
             />
             {slotConfirmed && (
               <div style={{ marginTop: '20px', textAlign: 'center', padding: '15px', backgroundColor: '#e9f7ef', borderRadius: '8px', border: '1px solid #d0e9e0' }}>
                 <h4 style={{ color: '#28a745', fontSize: '18px', marginBottom: '10px' }}>Confirmed Slot: {confirmedSlot}</h4>
                 {canJoin ? (
                   <button
-                    onClick={() => { // ADD THIS LOG HERE
+                    onClick={() => {
                       console.log("Button Clicked: Setting joined to true!");
                       setJoined(true);
                     }}
@@ -348,7 +343,7 @@ const MeetingApp = () => {
           </nav>
         </aside>
 
-        <div className="main-content" ref={mainContentRef}>
+        <div className="main-content" ref={mainContentRef}> {/* mainContentRef is used here */}
           <div className="header">
             <div className="header-left">
               <button className="btn-back" onClick={handleBackClick}>
