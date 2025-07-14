@@ -3,29 +3,59 @@ import React, { useState } from 'react';
 import axios from 'axios';
 
 // Define the API URL using an environment variable
-const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL;
+const BACKEND_API_URL = process.env.REACT_APP_BACKEND_API_URL || 'https://schoolmeetingbackend-production-b8a8.up.railway.app'; // Added fallback
 
 const CreateMeeting = ({ onCreated }) => {
-  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState(''); // Changed from email to phoneNumber
   const [meetingId, setMeetingId] = useState('');
+  const [whatsappLink, setWhatsappLink] = useState(''); // New state for WhatsApp link
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null); // New state for error messages
 
   const handleCreate = async () => {
-    if (!email) {
-      alert('Please enter a recipient email address.');
+    // Clear previous states
+    setError(null);
+    setWhatsappLink('');
+    setMeetingId('');
+
+    if (!phoneNumber.trim()) {
+      setError('Please enter a recipient phone number.');
       return;
     }
+
+    // Optional: Basic formatting for phone number to ensure it has a '+' prefix
+    // WhatsApp typically expects numbers with country codes, e.g., +919876543210
+    const formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+
     setLoading(true);
     try {
-      // Use the environment variable for the backend URL
-      const res = await axios.post(`${BACKEND_API_URL}/create-meeting`, { recipientEmail: email });
-      alert('Meeting invitation sent to email!');
-      setMeetingId(res.data.meetingId);
-      onCreated(res.data.meetingId);
-      setEmail('');
+      const res = await axios.post(`${BACKEND_API_URL}/create-meeting`, {
+        recipientPhoneNumber: formattedPhoneNumber // Changed from recipientEmail to recipientPhoneNumber
+      });
+
+      if (res.data.success) {
+        const { meetingLink, meetingId, recipientPhoneNumber: returnedPhoneNumber } = res.data;
+
+        // Encode the meeting message for the WhatsApp URL
+        const encodedMessage = encodeURIComponent(
+          `You've been invited to a meeting!\n\nClick here to join: ${meetingLink}\n\nMeeting ID: ${meetingId}\n\nThis invitation link will expire in 30 minutes.`
+        );
+
+        // Generate the WhatsApp "Click to Chat" link
+        // For wa.me links, the phone number should NOT have a '+' at the beginning. WhatsApp handles it.
+        const generatedWaMeLink = `https://wa.me/${returnedPhoneNumber.replace(/\+/g, '')}?text=${encodedMessage}`;
+
+        setMeetingId(meetingId);
+        setWhatsappLink(generatedWaMeLink); // Store the generated link
+        alert('Meeting created! Now share the link via WhatsApp.'); // Updated alert
+        onCreated(meetingId); // Still call onCreated if it's used by a parent component
+        setPhoneNumber(''); // Clear the input field
+      } else {
+        setError(res.data.message || 'Failed to create meeting.');
+      }
     } catch (err) {
       console.error('Error creating meeting:', err.response?.data?.message || err.message);
-      alert(`Error sending invite: ${err.response?.data?.message || 'Please check console for details.'}`);
+      setError(err.response?.data?.message || 'An error occurred. Please check console for details.');
     } finally {
       setLoading(false);
     }
@@ -36,10 +66,10 @@ const CreateMeeting = ({ onCreated }) => {
       <h3 style={{ color: '#333', marginBottom: '15px' }}>Create & Invite New Meeting</h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <input
-          type="email"
-          placeholder="Recipient Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="tel" // Changed to type="tel" for phone numbers
+          placeholder="Recipient WhatsApp Number (e.g., +919876543210)" // Updated placeholder
+          value={phoneNumber}
+          onChange={(e) => setPhoneNumber(e.target.value)} // Changed from setEmail to setPhoneNumber
           style={{
             flexGrow: 1,
             padding: '10px',
@@ -65,15 +95,42 @@ const CreateMeeting = ({ onCreated }) => {
           onMouseEnter={(e) => (e.target.style.backgroundColor = '#218838')}
           onMouseLeave={(e) => (e.target.style.backgroundColor = '#28a745')}
         >
-          {loading ? 'Sending...' : 'Send Invite'}
+          {loading ? 'Creating...' : 'Create Meeting'}
         </button>
       </div>
-      {meetingId && (
-        <p style={{ marginTop: '15px', fontSize: '14px', color: '#555' }}>
-          Generated Meeting ID: <code style={{ backgroundColor: '#e9ecef', padding: '5px 8px', borderRadius: '4px' }}>{meetingId}</code>
-          <br />
-          Share this ID or the link from the email with participants.
+
+      {error && (
+        <p style={{ marginTop: '15px', fontSize: '14px', color: 'red' }}>
+          Error: {error}
         </p>
+      )}
+
+      {meetingId && whatsappLink && (
+        <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#e9f7ef', borderLeft: '5px solid #28a745', borderRadius: '4px' }}>
+          <p style={{ fontWeight: 'bold', color: '#28a745' }}>Meeting Created!</p>
+          <p>Generated Meeting ID: <code style={{ backgroundColor: '#fff', padding: '2px 4px', borderRadius: '3px' }}>{meetingId}</code></p>
+          <p style={{ marginTop: '10px' }}>Click the button below to share the invitation via WhatsApp:</p>
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              backgroundColor: '#25D366', // WhatsApp green
+              color: 'white',
+              padding: '10px 15px',
+              borderRadius: '5px',
+              textDecoration: 'none',
+              marginTop: '10px',
+              fontSize: '16px',
+            }}
+          >
+            Share via WhatsApp 💬
+          </a>
+          <p style={{ marginTop: '15px', fontSize: '0.9em', color: '#555' }}>
+            (Ensure the recipient's phone number includes the country code, e.g., +91 for India.)
+          </p>
+        </div>
       )}
     </div>
   );
